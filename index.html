@@ -135,11 +135,30 @@
     <!-- 2D Tactical Grid Board Bar & Canvas (Shown only in Grid Mode) -->
     <div id="grid-mode-container" class="hidden space-y-4">
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
-        <div class="flex items-center gap-3 text-xs font-bold text-slate-200">
+        <div class="flex items-center gap-3 text-xs font-bold text-slate-200 flex-wrap">
           <span class="flex items-center gap-1.5 text-indigo-400">
             <i class="fa-solid fa-chess-board text-sm"></i> 2D 戰術地圖棋盤
           </span>
           <span class="text-slate-500">|</span>
+          
+          <!-- Mode Tools: Select/Move Token vs Paint Melee Zone -->
+          <div class="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+            <button id="grid-tool-select" onclick="setGridTool('select')" class="px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-indigo-600 text-white shadow">
+              <i class="fa-solid fa-hand-pointer text-[10px]"></i> 🎯 Token 移動/檢視
+            </button>
+            <button id="grid-tool-paint" onclick="setGridTool('paint')" class="px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200">
+              <i class="fa-solid fa-paintbrush text-[10px]"></i> 🖌️ 設定/繪製亂戰區
+            </button>
+          </div>
+
+          <!-- Melee Zone Selector (shown when painting) -->
+          <div id="paint-zone-selector-box" class="hidden flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+            <span class="text-slate-400 text-[11px]">劃設區域:</span>
+            <select id="grid-paint-zone-select" onchange="setPaintZone(this.value)" class="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-slate-200 text-xs font-semibold focus:outline-none">
+              <!-- Populated via JS -->
+            </select>
+          </div>
+
           <label class="flex items-center gap-1 text-slate-400">
             比例: 
             <select id="grid-scale-select" onchange="updateGridScale(this.value)" class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs">
@@ -149,9 +168,16 @@
             </select>
           </label>
         </div>
-        <div class="flex items-center gap-2 text-xs">
-          <button onclick="clearGridSelection()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition">
-            <i class="fa-solid fa-hand-pointer"></i> 清除選取 / 取消選取
+
+        <div class="flex items-center gap-2 text-xs flex-wrap">
+          <button onclick="autoDetectGridMeleeZones()" class="bg-amber-950 hover:bg-amber-900 text-amber-300 px-2.5 py-1.5 rounded-lg border border-amber-800/80 transition flex items-center gap-1 font-bold">
+            <i class="fa-solid fa-bolt text-xs"></i> ⚡ 自動偵測亂戰
+          </button>
+          <button onclick="clearGridMeleeZones()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1">
+            <i class="fa-solid fa-eraser text-xs"></i> 清空棋盤亂戰區
+          </button>
+          <button onclick="clearGridSelection()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-700 transition">
+            <i class="fa-solid fa-xmark"></i> 取消選取
           </button>
           <div id="grid-selection-info" class="px-3 py-1.5 rounded-lg bg-indigo-950 text-indigo-300 border border-indigo-800/60 font-mono text-xs font-bold">
             點擊棋子檢視移動射程與詳細數據
@@ -218,12 +244,6 @@
           </div>
         </div>
 
-        <!-- Initial Zone & Meter Position -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div class="md:col-span-2 space-y-1">
-            <label class="text-xs font-semibold text-slate-400">初始位置區 (區域模式)</label>
-            <select id="unit-zone" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
-              <!-- Populated via JS -->
         <!-- Initial Zone Position -->
         <div class="space-y-1">
           <label class="text-xs font-semibold text-slate-400">初始位置區 (區域模式)</label>
@@ -233,1277 +253,246 @@
         </div>
 
         <!-- Combat Stats & Movement (SW2.5 Core) -->
-        <div class="border-t border-slate-800 pt-3">
-          <span class="text-xs font-bold text-slate-400 block mb-2">SW 2.5 基礎數值 & 移動力</span>
-          <div class="grid grid-cols-5 gap-2">
+        <div class="border-t border-slate-800 pt-3 space-y-2">
+          <span class="text-xs font-bold text-slate-300 block">SW 2.5 基礎數值 & 移動力</span>
+          <div class="grid grid-cols-5 gap-2.5">
             <div>
-              <label class="text-[10px] text-slate-400 block">命中</label>
-              <input type="number" id="unit-hit" value="12" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm text-center text-slate-100">
+              <label class="text-xs text-slate-400 block mb-1 text-center font-medium">命中</label>
+              <input type="number" id="unit-hit" value="12" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-sm text-center text-slate-100 font-bold focus:border-blue-500 focus:outline-none">
             </div>
             <div>
-              <label class="text-[10px] text-slate-400 block">迴避</label>
-              <input type="number" id="unit-evasion" value="11" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm text-center text-slate-100">
+              <label class="text-xs text-slate-400 block mb-1 text-center font-medium">迴避</label>
+              <input type="number" id="unit-evasion" value="11" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-sm text-center text-slate-100 font-bold focus:border-blue-500 focus:outline-none">
             </div>
             <div>
-              <label class="text-[10px] text-slate-400 block">防護點</label>
-              <input type="number" id="unit-armor" value="4" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm text-center text-slate-100">
+              <label class="text-xs text-slate-400 block mb-1 text-center font-medium">防護點</label>
+              <input type="number" id="unit-armor" value="4" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-sm text-center text-slate-100 font-bold focus:border-blue-500 focus:outline-none">
             </div>
             <div>
-              <label class="text-[10px] text-slate-400 block">魔力/魔攻</label>
-              <input type="number" id="unit-magic" value="0" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm text-center text-slate-100">
+              <label class="text-xs text-slate-400 block mb-1 text-center font-medium whitespace-nowrap">魔力/魔攻</label>
+              <input type="number" id="unit-magic" value="0" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-sm text-center text-slate-100 font-bold focus:border-blue-500 focus:outline-none">
             </div>
             <div>
-              <label class="text-[10px] text-indigo-400 block">移動(m)</label>
-              <input type="number" id="unit-move-speed" value="12" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm text-center text-slate-100" title="通常移動距離 (m)">
+              <label class="text-xs text-indigo-400 block mb-1 text-center font-medium whitespace-nowrap">移動 (m)</label>
+              <input type="number" id="unit-move-speed" value="12" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-sm text-center text-slate-100 font-bold focus:border-blue-500 focus:outline-none" title="通常移動距離 (m)">
             </div>
           </div>
         </div>
 
         <!-- Buttons -->
         <div class="pt-4 flex justify-end gap-2 border-t border-slate-800">
-          <button type="button" onclick="closeUnitModal()" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition">取消</button>
-          <button type="submit" class="px-5 py-2 rounded-lg text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md transition">儲存單位</button>
+          <button type="button" onclick="closeUnitModal()" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 transition">
+            取消
+          </button>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2 rounded-lg text-sm shadow-md transition flex items-center gap-2">
+            <i class="fa-solid fa-floppy-disk text-xs"></i> 儲存單位
+          </button>
         </div>
       </form>
-
     </div>
   </div>
 
-  <!-- ==================== MODAL: ADD EFFECT ==================== -->
+  <!-- ==================== MODAL: ADD / EDIT EFFECT (BUFF/DEBUFF) ==================== -->
   <div id="effect-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-sm w-full p-5 shadow-2xl">
-      <h3 class="text-md font-bold text-slate-100 mb-3 flex items-center gap-2">
-        <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i> 為單位新增 Buff / 持續效果
-      </h3>
-      <input type="hidden" id="effect-target-id">
-      <div class="space-y-3">
-        <!-- Preset Selector -->
-        <div>
-          <label class="text-xs font-semibold text-slate-400">SW 2.5 常用效果 / 魔法預設</label>
-          <select id="effect-preset-select" onchange="applyEffectPreset()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500">
-            <option value="">-- 自訂效果 / 手動輸入 --</option>
-            <option value="field_protection">《防禦術》 (防護點 +1, 3 R)</option>
-            <option value="holy_armor">《神聖護甲》 (防護點 +2, 3 R)</option>
-            <option value="cats_eye">《貓之眼》 (命中點 +1, 3 R)</option>
-            <option value="rabbits_foot">《兔之足》 (迴避點 +1, 3 R)</option>
-            <option value="target_sight">《瞄準標記》 (命中點 +1, 3 R)</option>
-            <option value="barkskin">《樹皮術》 (防護點 +1, 3 R)</option>
-            <option value="magic_power">《魔力加護》 (魔力 +1, 3 R)</option>
-            <option value="sunder_armor">《破甲》 (防護點 -2, 3 R)</option>
-            <option value="dazzle">《眩目》 (命中點 -1, 3 R)</option>
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+        <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+          <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i> 新增持續效果 / Buff
+        </h3>
+        <button onclick="closeEffectModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <form id="effect-form" onsubmit="saveEffect(event)" class="p-6 space-y-4">
+        <input type="hidden" id="effect-target-id">
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-slate-400">SW 2.5 常用預設效果</label>
+          <select id="effect-preset" onchange="applyEffectPreset(this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
+            <option value="">-- 自訂效果 / 特技 --</option>
+            <option value="DEFENSE">《防禦術》 (防護+1, 3R)</option>
+            <option value="CATS_EYE">《貓之眼》 (命中+1, 3R)</option>
+            <option value="RABBIT_FOOT">《兔之足》 (迴避+1, 3R)</option>
+            <option value="HOLY_ARMOR">《神聖護甲》 (防護+2, 3R)</option>
+            <option value="ARMOR_BREAK">《破甲》 (防護-2, 3R)</option>
           </select>
         </div>
-
-        <div>
-          <label class="text-xs font-semibold text-slate-400">效果名稱 / 備註</label>
-          <input type="text" id="effect-name" placeholder="如：《防禦術》、毒傷害" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
+        <div class="space-y-1">
+          <label class="text-xs font-semibold text-slate-400">效果名稱</label>
+          <input type="text" id="effect-name" required placeholder="如：《防禦術》" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
         </div>
-        
-        <div>
-          <label class="text-xs font-semibold text-slate-400">持續輪數 (R)</label>
-          <input type="number" id="effect-rounds" min="1" max="99" value="3" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
-        </div>
-
-        <!-- Dynamic Stat Modifiers Section -->
-        <div class="border-t border-slate-800 pt-2">
-          <label class="text-xs font-bold text-amber-400 block mb-1">數值加減加成 (Stat Modifiers)</label>
-          <div class="grid grid-cols-4 gap-2">
-            <div>
-              <label class="text-[10px] text-slate-400 block">命中加成</label>
-              <input type="number" id="effect-mod-hit" value="0" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-center text-slate-100">
-            </div>
-            <div>
-              <label class="text-[10px] text-slate-400 block">迴避加成</label>
-              <input type="number" id="effect-mod-evasion" value="0" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-center text-slate-100">
-            </div>
-            <div>
-              <label class="text-[10px] text-slate-400 block">防護加成</label>
-              <input type="number" id="effect-mod-armor" value="0" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-center text-slate-100">
-            </div>
-            <div>
-              <label class="text-[10px] text-slate-400 block">魔力加成</label>
-              <input type="number" id="effect-mod-magic" value="0" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-center text-slate-100">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-slate-400">持續輪數 (Round)</label>
+            <input type="number" id="effect-rounds" value="3" min="1" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold text-slate-400">修正目標與數值</label>
+            <div class="flex gap-1">
+              <select id="effect-stat" class="w-1/2 bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-100 focus:outline-none">
+                <option value="none">無數值修正</option>
+                <option value="hit">命中</option>
+                <option value="evasion">迴避</option>
+                <option value="armor">防護點</option>
+                <option value="magic">魔力</option>
+              </select>
+              <input type="number" id="effect-val" value="1" class="w-1/2 bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-center text-slate-100 font-bold focus:outline-none">
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="mt-5 flex justify-end gap-2">
-        <button onclick="closeEffectModal()" class="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white">取消</button>
-        <button onclick="saveEffect()" class="px-4 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950">確認新增</button>
-      </div>
+        <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="closeEffectModal()" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200">取消</button>
+          <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2 rounded-lg text-sm shadow">新增效果</button>
+        </div>
+      </form>
     </div>
   </div>
 
-  <!-- Notification Toast Container -->
-  <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
-
-  <!-- ==================== MODAL: ROOM SHARING & SPECTATE ==================== -->
+  <!-- ==================== MODAL: LIVE ROOM SHARE ==================== -->
   <div id="room-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-      
-      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-        <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
-          <i class="fa-solid fa-wifi text-indigo-400"></i> 即時戰鬥房間與畫面分享
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+        <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+          <i class="fa-solid fa-wifi text-indigo-400"></i> 即時連線房間設定
         </h3>
         <button onclick="closeRoomModal()" class="text-slate-400 hover:text-white transition">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
-
-      <!-- Current Room Info if active -->
-      <div id="active-room-box" class="hidden bg-slate-950 border border-indigo-900/60 rounded-xl p-4 text-center space-y-2">
-        <span class="text-xs text-indigo-300 font-semibold block">目前連線中的房間代碼</span>
-        <div class="flex items-center justify-center gap-2">
-          <span id="current-room-code-display" class="text-3xl font-black font-mono tracking-widest text-indigo-400">---</span>
-          <button onclick="copyRoomCode()" class="bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition">
-            <i class="fa-solid fa-copy"></i> 複製
-          </button>
-        </div>
-        <p id="room-role-tag" class="text-xs text-slate-400">身份：房主 (主持人)</p>
-        <button onclick="leaveRoom()" class="w-full mt-2 bg-red-950/60 hover:bg-red-900 text-red-300 text-xs py-1.5 rounded-lg border border-red-900/40 transition">
-          中斷連線 / 離開房間
-        </button>
-      </div>
-
-      <!-- Create or Join Room Buttons -->
-      <div id="room-actions-box" class="space-y-4">
-        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-          <h4 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <i class="fa-solid fa-tower-broadcast text-indigo-400"></i> 我是 GM：建立即時分享房間
-          </h4>
-          <p class="text-xs text-slate-400">生成房間代碼，將當前戰鬥盤面即時同步給所有加入的玩家。</p>
-          <button onclick="createShareRoom()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg text-xs shadow transition flex items-center justify-center gap-1.5">
-            <i class="fa-solid fa-plus-circle"></i> 建立全新戰鬥房間
-          </button>
-        </div>
-
+      <div class="p-6 space-y-4">
         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-          <h4 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <i class="fa-solid fa-eye text-emerald-400"></i> 我是玩家：輸入代碼加入觀戰
-          </h4>
+          <span class="text-xs font-bold text-slate-400 block">建立全新房間 (GM 主端)</span>
+          <button onclick="createShareRoom()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg text-sm shadow transition">
+            <i class="fa-solid fa-plus-circle"></i> 建立線上戰鬥房間
+          </button>
+        </div>
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-800"></div>
+          <span class="flex-shrink mx-4 text-xs font-bold text-slate-500">或輸入代碼加入</span>
+          <div class="flex-grow border-t border-slate-800"></div>
+        </div>
+        <div class="space-y-2">
+          <input type="text" id="join-room-code" placeholder="輸入 6 位數房間代碼 (如 SW-8942)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-center font-mono text-slate-100 focus:outline-none">
+          <button onclick="joinShareRoom()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-2.5 rounded-lg text-sm transition">
+            加入戰鬥房間 (客端)
+          </button>
+        </div>
+        <div id="active-room-info" class="hidden bg-indigo-950/60 border border-indigo-800 p-3 rounded-xl text-center space-y-2">
+          <span class="text-xs text-indigo-300 block">目前房間代碼</span>
+          <span id="active-room-code-display" class="text-2xl font-black font-mono text-indigo-200 block">SW-0000</span>
           <div class="flex gap-2">
-            <input type="text" id="join-room-input" placeholder="輸入 6 位房間號 (如 SW-8492)" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 uppercase font-mono tracking-wider focus:outline-none focus:border-emerald-500">
-            <button onclick="joinShareRoom()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg text-xs shadow transition">
-              連線觀戰
-            </button>
+            <button onclick="copyRoomCode()" class="flex-1 bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-bold py-1.5 rounded shadow">複製代碼</button>
+            <button onclick="leaveRoom()" class="flex-1 bg-rose-900 hover:bg-rose-800 text-rose-200 text-xs font-bold py-1.5 rounded border border-rose-700">離開房間</button>
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
-  <!-- FIREBASE CLOUD REALTIME SYNC SDK -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'sw25-tracker';
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-    let db = null;
-    let auth = null;
-    let currentUser = null;
-    let activeUnsubscribe = null;
-
-    if (firebaseConfig) {
-      try {
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-
-        if (initialAuthToken) {
-          signInWithCustomToken(auth, initialAuthToken)
-            .then(res => { currentUser = res.user; })
-            .catch(() => signInAnonymously(auth).then(res => { currentUser = res.user; }));
-        } else {
-          signInAnonymously(auth).then(res => { currentUser = res.user; });
-        }
-      } catch (err) {
-        console.warn("Firebase initialization skipped:", err);
-      }
-    }
-
-    window.cloudSync = {
-      isConfigured: () => !!db,
-      pushState: async (roomCode, stateData) => {
-        if (!db || !currentUser || !roomCode) return;
-        try {
-          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode.toUpperCase());
-          await setDoc(roomRef, {
-            state: stateData,
-            updatedAt: Date.now()
-          }, { merge: true });
-        } catch (e) {
-          console.error("Cloud sync push error:", e);
-        }
-      },
-      listenRoom: (roomCode, onUpdateCallback, onErrorCallback) => {
-        if (!db || !roomCode) return null;
-        if (activeUnsubscribe) activeUnsubscribe();
-
-        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode.toUpperCase());
-        activeUnsubscribe = onSnapshot(roomRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            if (data && data.state) {
-              onUpdateCallback(data.state);
-            }
-          } else if (onErrorCallback) {
-            onErrorCallback("房間不存在或已失效");
-          }
-        }, (error) => {
-          console.error("Room snapshot error:", error);
-          if (onErrorCallback) onErrorCallback("房間連線中斷");
-        });
-
-        return activeUnsubscribe;
-      },
-      stopListen: () => {
-        if (activeUnsubscribe) {
-          activeUnsubscribe();
-          activeUnsubscribe = null;
-        }
-      }
-    };
-  </script>
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- ==================== JAVASCRIPT LOGIC ==================== -->
   <script>
-    // --- HELPER & TOAST FUNCTIONS ---
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
+    // System State
+    let state = {
+      role: 'gm', // 'gm' or 'player'
+      combatMode: 'standard', // 'standard' or 'grid'
+      showMonsterStats: true,
+      showMonsterNames: true,
+      round: 1,
+      gridScale: 3,
+      gridTool: 'select', // 'select' or 'paint'
+      paintZoneId: 'melee-1',
+      selectedUnitId: null,
+      zones: [
+        { id: 'player-rear', name: '己方後衛 (Player Rear)', isMelee: false, gridCells: [] },
+        { id: 'melee-1', name: '亂戰區域 #1', isMelee: true, gridCells: ['4,4', '4,5', '5,4', '5,5'] },
+        { id: 'enemy-rear', name: '敵方後衛 (Enemy Rear)', isMelee: false, gridCells: [] }
+      ],
+      units: [
+        {
+          id: 'u-1',
+          name: '艾爾琳',
+          faction: 'player',
+          zoneId: 'melee-1',
+          gridPos: { x: 4, y: 4 },
+          hp: { current: 28, max: 28 },
+          mp: { current: 18, max: 20 },
+          baseHit: 13,
+          baseEvasion: 12,
+          baseArmor: 5,
+          baseMagic: 8,
+          moveSpeed: 12,
+          actions: { main: false, sub: false },
+          effects: [{ id: 'e-1', name: '《防禦術》', rounds: 3, stat: 'armor', val: 1 }]
+        },
+        {
+          id: 'u-2',
+          name: '蠻族戰士 A',
+          faction: 'enemy',
+          zoneId: 'melee-1',
+          gridPos: { x: 5, y: 5 },
+          hp: { current: 32, max: 35 },
+          mp: { current: 10, max: 10 },
+          baseHit: 12,
+          baseEvasion: 11,
+          baseArmor: 4,
+          baseMagic: 0,
+          moveSpeed: 10,
+          actions: { main: false, sub: false },
+          effects: []
+        }
+      ]
+    };
 
+    // Helper: Toast notification
     function showToast(msg, type = 'info') {
       const container = document.getElementById('toast-container');
-      if (!container) return;
       const toast = document.createElement('div');
-      const bg = type === 'warning' ? 'bg-amber-900/90 border-amber-600 text-amber-200' : 'bg-slate-900/90 border-blue-600 text-slate-100';
-      toast.className = `px-4 py-2.5 rounded-xl border shadow-xl text-xs font-semibold backdrop-blur-md pointer-events-auto transition duration-300 flex items-center gap-2 ${bg}`;
-      toast.innerHTML = `<i class="fa-solid ${type === 'warning' ? 'fa-triangle-exclamation text-amber-400' : 'fa-circle-info text-blue-400'}"></i> <span>${escapeHtml(msg)}</span>`;
+      toast.className = `pointer-events-auto px-4 py-2.5 rounded-lg shadow-xl text-xs font-bold text-white transition-all transform duration-300 translate-y-2 border ${
+        type === 'error' ? 'bg-rose-600 border-rose-500' : type === 'success' ? 'bg-emerald-600 border-emerald-500' : 'bg-slate-800 border-slate-700'
+      }`;
+      toast.innerText = msg;
       container.appendChild(toast);
       setTimeout(() => {
-        toast.style.opacity = '0';
+        toast.classList.add('opacity-0', '-translate-y-2');
         setTimeout(() => toast.remove(), 300);
-      }, 3000);
+      }, 2500);
     }
 
-    // --- STATUS BADGE DEFINITIONS FOR SW 2.5 ---
-    const STATUS_PRESETS = [
-      { id: 'prone', label: '轉倒', icon: 'fa-person-falling', color: 'text-amber-400 bg-amber-950/60 border-amber-800' },
-      { id: 'poison', label: '毒', icon: 'fa-skull-crossbones', color: 'text-emerald-400 bg-emerald-950/60 border-emerald-800' },
-      { id: 'paralysis', label: '麻痺', icon: 'fa-bolt', color: 'text-yellow-300 bg-yellow-950/60 border-yellow-800' },
-      { id: 'petrified', label: '石化', icon: 'fa-cube', color: 'text-slate-300 bg-slate-800 border-slate-600' },
-      { id: 'death_check', label: '生死判定', icon: 'fa-heart-crack', color: 'text-red-400 bg-red-950/60 border-red-800 animate-pulse' },
-      { id: 'breakaway_prep', label: '離脫準備', icon: 'fa-person-walking-arrow-right', color: 'text-sky-300 bg-sky-950/60 border-sky-800' },
-      { id: 'flying', label: '飛空', icon: 'fa-feather', color: 'text-sky-300 bg-sky-950/60 border-sky-800' }
-    ];
+    // Modal Control Functions
+    function openUnitModal(unitId = null) {
+      const modal = document.getElementById('unit-modal');
+      const form = document.getElementById('unit-form');
+      const title = document.getElementById('modal-title');
+      const zoneSelect = document.getElementById('unit-zone');
 
-    const EFFECT_PRESETS = {
-      field_protection: { name: '《防禦術》', rounds: 3, mods: { hit: 0, evasion: 0, armor: 1, magic: 0 } },
-      holy_armor: { name: '《神聖護甲》', rounds: 3, mods: { hit: 0, evasion: 0, armor: 2, magic: 0 } },
-      cats_eye: { name: '《貓之眼》', rounds: 3, mods: { hit: 1, evasion: 0, armor: 0, magic: 0 } },
-      rabbits_foot: { name: '《兔之足》', rounds: 3, mods: { hit: 0, evasion: 1, armor: 0, magic: 0 } },
-      target_sight: { name: '《瞄準標記》', rounds: 3, mods: { hit: 1, evasion: 0, armor: 0, magic: 0 } },
-      barkskin: { name: '《樹皮術》', rounds: 3, mods: { hit: 0, evasion: 0, armor: 1, magic: 0 } },
-      magic_power: { name: '《魔力加護》', rounds: 3, mods: { hit: 0, evasion: 0, armor: 0, magic: 1 } },
-      sunder_armor: { name: '《破甲》', rounds: 3, mods: { hit: 0, evasion: 0, armor: -2, magic: 0 } },
-      dazzle: { name: '《眩目》', rounds: 3, mods: { hit: -1, evasion: 0, armor: 0, magic: 0 } }
-    };
+      // Populate zone select
+      zoneSelect.innerHTML = state.zones.map(z => `<option value="${z.id}">${z.name}</option>`).join('');
 
-    // --- INITIAL APP STATE ---
-    let currentRole = 'gm'; // 'gm' or 'player'
-    let activeRoomCode = null;
-
-    let state = {
-      round: 1,
-      combatMode: 'standard', // 'standard' or 'grid'
-      gridScale: 3, // 3 meters per cell
-      selectedGridUnitId: null,
-      settings: {
-        hideMonsterStats: false,
-        hideMonsterNames: false
-      },
-      zones: [
-        { id: 'player-rear', name: '己方後衛 (Player Rear)', canDelete: false },
-        { id: 'melee-1', name: '亂戰區域 #1', canDelete: false },
-        { id: 'enemy-rear', name: '敵方後衛 (Enemy Rear)', canDelete: false }
-      ],
-      entities: []
-    };
-
-    // --- INITIAL DEMO DATA ---
-    function initDefaultData() {
-      state.entities = [
-        {
-          id: 'unit-pc-1',
-          name: '萊恩 (前衛戰士)',
-          faction: 'player',
-          zoneId: 'melee-1',
-          gridX: 4, gridY: 6,
-          moveSpeed: 12,
-          moveType: 'normal',
-          hp: 28, maxHp: 32,
-          mp: 12, maxMp: 12,
-          stats: { hit: 13, evasion: 12, armor: 5, magic: 0 },
-          actions: { main: false, sub: false, skillDeclared: false },
-          statuses: [],
-          effects: [{ id: 'eff-1', name: '《防禦術》', rounds: 2, mods: { hit: 0, evasion: 0, armor: 1, magic: 0 } }]
-        },
-        {
-          id: 'unit-pc-2',
-          name: '塞蕾娜 (操靈術師)',
-          faction: 'player',
-          zoneId: 'player-rear',
-          gridX: 2, gridY: 6,
-          moveSpeed: 10,
-          moveType: 'none',
-          hp: 18, maxHp: 18,
-          mp: 24, maxMp: 24,
-          stats: { hit: 9, evasion: 9, armor: 1, magic: 6 },
-          actions: { main: false, sub: false, skillDeclared: false },
-          statuses: [],
-          effects: []
-        },
-        {
-          id: 'unit-mob-1',
-          name: '哥布林勇士 A',
-          faction: 'enemy',
-          zoneId: 'melee-1',
-          gridX: 5, gridY: 6,
-          moveSpeed: 12,
-          moveType: 'restricted',
-          hp: 19, maxHp: 24,
-          mp: 8, maxMp: 8,
-          stats: { hit: 12, evasion: 11, armor: 3, magic: 0 },
-          actions: { main: false, sub: false, skillDeclared: false },
-          statuses: ['prone'],
-          effects: []
-        },
-        {
-          id: 'unit-mob-2',
-          name: '哥布林薩滿',
-          faction: 'enemy',
-          zoneId: 'enemy-rear',
-          gridX: 9, gridY: 6,
-          moveSpeed: 10,
-          moveType: 'none',
-          hp: 16, maxHp: 16,
-          mp: 18, maxMp: 18,
-          stats: { hit: 10, evasion: 10, armor: 2, magic: 4 },
-          actions: { main: false, sub: false, skillDeclared: false },
-          statuses: [],
-          effects: []
-        }
-      ];
-    }
-
-    // --- STATE PERSISTENCE ---
-    function saveState() {
-      try {
-        localStorage.setItem('sw25_tracker_state', JSON.stringify(state));
-        if (activeRoomCode && window.cloudSync && window.cloudSync.isConfigured()) {
-          window.cloudSync.pushState(activeRoomCode, state);
-        }
-      } catch (e) {
-        console.error('Save state failed:', e);
-      }
-    }
-
-    function loadSavedState() {
-      try {
-        const saved = localStorage.getItem('sw25_tracker_state');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') {
-            state = Object.assign(state, parsed);
-          }
-        }
-        if (!state.entities || state.entities.length === 0) {
-          initDefaultData();
-        }
-      } catch (e) {
-        console.error('Load state failed:', e);
-        initDefaultData();
-      }
-    }
-
-    // --- ROLE MANAGEMENT (GM / PLAYER) ---
-    function setRole(role) {
-      currentRole = role;
-      const gmBtn = document.getElementById('role-btn-gm');
-      const playerBtn = document.getElementById('role-btn-player');
-      const gmControls = document.getElementById('gm-visibility-controls');
-
-      if (role === 'gm') {
-        if (gmBtn) gmBtn.className = 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-amber-500 text-slate-950 shadow';
-        if (playerBtn) playerBtn.className = 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
-        if (gmControls) gmControls.classList.remove('hidden');
-        showToast('切換為：GM (主) 權限模式');
+      if (unitId) {
+        const unit = state.units.find(u => u.id === unitId);
+        if (!unit) return;
+        title.innerHTML = `<i class="fa-solid fa-user-pen text-blue-400"></i> 編輯單位`;
+        document.getElementById('unit-id').value = unit.id;
+        document.getElementById('unit-name').value = unit.name;
+        document.getElementById('unit-faction').value = unit.faction;
+        document.getElementById('unit-zone').value = unit.zoneId;
+        document.getElementById('unit-hit').value = unit.baseHit;
+        document.getElementById('unit-evasion').value = unit.baseEvasion;
+        document.getElementById('unit-armor').value = unit.baseArmor;
+        document.getElementById('unit-magic').value = unit.baseMagic;
+        document.getElementById('unit-move-speed').value = unit.moveSpeed;
       } else {
-        if (gmBtn) gmBtn.className = 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
-        if (playerBtn) playerBtn.className = 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-emerald-600 text-white shadow';
-        if (gmControls) gmControls.classList.add('hidden');
-        showToast('切換為：玩家 (客) 權限模式');
+        title.innerHTML = `<i class="fa-solid fa-user-plus text-blue-400"></i> 新增單位 / 魔物`;
+        form.reset();
+        document.getElementById('unit-id').value = '';
       }
-      renderApp();
-    }
-
-    // --- GM FOG OF WAR TOGGLES ---
-    function updateFogOfWarButtonsUI() {
-      const btnStats = document.getElementById('btn-toggle-stats');
-      const btnNames = document.getElementById('btn-toggle-names');
-
-      if (btnStats) {
-        const isHidden = !!state.settings.hideMonsterStats;
-        btnStats.className = isHidden
-          ? 'px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5 bg-red-950/80 text-red-300 border border-red-800 hover:bg-red-900/80 shadow-sm'
-          : 'px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5 bg-emerald-950/80 text-emerald-300 border border-emerald-700 hover:bg-emerald-900/80 shadow-sm';
-        btnStats.innerHTML = isHidden
-          ? `<i class="fa-solid fa-eye-slash text-red-400"></i> <span>數值：隱藏中</span>`
-          : `<i class="fa-solid fa-eye text-emerald-400"></i> <span>數值：顯示中</span>`;
-      }
-
-      if (btnNames) {
-        const isHidden = !!state.settings.hideMonsterNames;
-        btnNames.className = isHidden
-          ? 'px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5 bg-red-950/80 text-red-300 border border-red-800 hover:bg-red-900/80 shadow-sm'
-          : 'px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5 bg-indigo-950/80 text-indigo-300 border border-indigo-700 hover:bg-indigo-900/80 shadow-sm';
-        btnNames.innerHTML = isHidden
-          ? `<i class="fa-solid fa-eye-slash text-red-400"></i> <span>名稱：隱藏中</span>`
-          : `<i class="fa-solid fa-eye text-indigo-400"></i> <span>名稱：顯示中</span>`;
-      }
-    }
-
-    function toggleMonsterStatsVisibility() {
-      state.settings.hideMonsterStats = !state.settings.hideMonsterStats;
-      saveState();
-      renderApp();
-      showToast(state.settings.hideMonsterStats ? '已對玩家隱藏魔物數字' : '已對玩家顯示魔物數字');
-    }
-
-    function toggleMonsterNamesVisibility() {
-      state.settings.hideMonsterNames = !state.settings.hideMonsterNames;
-      saveState();
-      renderApp();
-      showToast(state.settings.hideMonsterNames ? '已對玩家隱藏魔物名稱' : '已對玩家顯示魔物名稱');
-    }
-
-    // --- ROUND CONTROLLER ---
-    function nextRound() {
-      state.round += 1;
-      state.entities.forEach(entity => {
-        entity.actions.main = false;
-        entity.actions.sub = false;
-        entity.actions.skillDeclared = false;
-        entity.moveType = 'none';
-        
-        if (entity.effects && entity.effects.length > 0) {
-          entity.effects.forEach(eff => { eff.rounds -= 1; });
-          entity.effects = entity.effects.filter(eff => eff.rounds > 0);
-        }
-      });
-      saveState();
-      renderApp();
-      showToast(`進入 Round ${state.round}！已重置行動權利，過期 Buff 已移除。`);
-    }
-
-    // --- ZONE MANAGEMENT ---
-    function addMeleeZone() {
-      const count = state.zones.filter(z => z.id.startsWith('melee')).length + 1;
-      const newZone = {
-        id: `melee-${Date.now()}`,
-        name: `亂戰區域 #${count}`,
-        canDelete: true
-      };
-      state.zones.splice(state.zones.length - 1, 0, newZone);
-      saveState();
-      renderApp();
-      showToast(`已新增 ${newZone.name}`);
-    }
-
-    function deleteZone(zoneId) {
-      const zone = state.zones.find(z => z.id === zoneId);
-      if (!zone) return;
-      if (confirm(`確定要刪除「${zone.name}」嗎？該區域內的單位將移至預設區域。`)) {
-        const fallbackZoneId = state.zones[0].id;
-        state.entities.forEach(e => {
-          if (e.zoneId === zoneId) e.zoneId = fallbackZoneId;
-        });
-        state.zones = state.zones.filter(z => z.id !== zoneId);
-        saveState();
-        renderApp();
-        showToast(`已刪除 ${zone.name}`);
-      }
-    }
-
-    function moveEntityToZone(entityId, zoneId) {
-      const entity = state.entities.find(e => e.id === entityId);
-      if (entity) {
-        entity.zoneId = zoneId;
-        saveState();
-        renderApp();
-      }
-    }
-
-    // --- ACTIONS & RESOURCE HELPERS ---
-    function adjustResource(entityId, type, delta) {
-      const entity = state.entities.find(e => e.id === entityId);
-      if (!entity) return;
-      if (type === 'hp') {
-        entity.hp = Math.max(0, Math.min(entity.maxHp, entity.hp + delta));
-      } else if (type === 'mp') {
-        entity.mp = Math.max(0, Math.min(entity.maxMp, entity.mp + delta));
-      }
-      saveState();
-      renderApp();
-    }
-
-    function toggleAction(entityId, actionType) {
-      const entity = state.entities.find(e => e.id === entityId);
-      if (!entity) return;
-      entity.actions[actionType] = !entity.actions[actionType];
-      saveState();
-      renderApp();
-    }
-
-    function toggleStatus(entityId, statusId) {
-      const entity = state.entities.find(e => e.id === entityId);
-      if (!entity) return;
-      if (!entity.statuses) entity.statuses = [];
-      const idx = entity.statuses.indexOf(statusId);
-      if (idx >= 0) {
-        entity.statuses.splice(idx, 1);
-      } else {
-        entity.statuses.push(statusId);
-      }
-      saveState();
-      renderApp();
-    }
-
-    // --- EFFECT / BUFF MANAGEMENT ---
-    function openEffectModal(unitId) {
-      document.getElementById('effect-target-id').value = unitId;
-      document.getElementById('effect-preset-select').value = '';
-      document.getElementById('effect-name').value = '';
-      document.getElementById('effect-rounds').value = '3';
-      document.getElementById('effect-mod-hit').value = '0';
-      document.getElementById('effect-mod-evasion').value = '0';
-      document.getElementById('effect-mod-armor').value = '0';
-      document.getElementById('effect-mod-magic').value = '0';
-      document.getElementById('effect-modal').classList.remove('hidden');
-    }
-
-    function closeEffectModal() {
-      document.getElementById('effect-modal').classList.add('hidden');
-    }
-
-    function applyEffectPreset() {
-      const presetKey = document.getElementById('effect-preset-select').value;
-      if (presetKey && EFFECT_PRESETS[presetKey]) {
-        const preset = EFFECT_PRESETS[presetKey];
-        document.getElementById('effect-name').value = preset.name;
-        document.getElementById('effect-rounds').value = preset.rounds;
-        document.getElementById('effect-mod-hit').value = preset.mods.hit || 0;
-        document.getElementById('effect-mod-evasion').value = preset.mods.evasion || 0;
-        document.getElementById('effect-mod-armor').value = preset.mods.armor || 0;
-        document.getElementById('effect-mod-magic').value = preset.mods.magic || 0;
-      }
-    }
-
-    function saveEffect() {
-      const unitId = document.getElementById('effect-target-id').value;
-      const name = document.getElementById('effect-name').value.trim();
-      const rounds = parseInt(document.getElementById('effect-rounds').value, 10) || 1;
-      const hitMod = parseInt(document.getElementById('effect-mod-hit').value, 10) || 0;
-      const evasionMod = parseInt(document.getElementById('effect-mod-evasion').value, 10) || 0;
-      const armorMod = parseInt(document.getElementById('effect-mod-armor').value, 10) || 0;
-      const magicMod = parseInt(document.getElementById('effect-mod-magic').value, 10) || 0;
-
-      if (!name) return;
-
-      const unit = state.entities.find(e => e.id === unitId);
-      if (unit) {
-        if (!unit.effects) unit.effects = [];
-        unit.effects.push({
-          id: `eff-${Date.now()}`,
-          name,
-          rounds,
-          mods: { hit: hitMod, evasion: evasionMod, armor: armorMod, magic: magicMod }
-        });
-        saveState();
-        renderApp();
-        showToast(`已新增 Buff：「${name}」`);
-      }
-      closeEffectModal();
-    }
-
-    function adjustEffectRound(unitId, effectId, delta) {
-      const unit = state.entities.find(e => e.id === unitId);
-      if (!unit || !unit.effects) return;
-      const eff = unit.effects.find(e => e.id === effectId);
-      if (eff) {
-        eff.rounds += delta;
-        if (eff.rounds <= 0) {
-          unit.effects = unit.effects.filter(e => e.id !== effectId);
-        }
-        saveState();
-        renderApp();
-      }
-    }
-
-    function removeEffect(unitId, effectId) {
-      const unit = state.entities.find(e => e.id === unitId);
-      if (!unit || !unit.effects) return;
-      unit.effects = unit.effects.filter(e => e.id !== effectId);
-      saveState();
-      renderApp();
-    }
-
-    // --- DYNAMIC STATS & BADGE HELPERS ---
-    function getFactionBorderColor(faction) {
-      switch (faction) {
-        case 'player': return 'border-emerald-700/60 bg-emerald-950/10';
-        case 'ally': return 'border-purple-700/60 bg-purple-950/10';
-        case 'enemy': return 'border-red-700/60 bg-red-950/10';
-        default: return 'border-slate-800';
-      }
-    }
-
-    function getFactionBadge(faction) {
-      switch (faction) {
-        case 'player': return '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">PC</span>';
-        case 'ally': return '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">盟友</span>';
-        case 'enemy': return '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">敵方</span>';
-        default: return '';
-      }
-    }
-
-    function getEffectiveStats(entity) {
-      const base = entity.stats || { hit: 0, evasion: 0, armor: 0, magic: 0 };
-      const mods = { hit: 0, evasion: 0, armor: 0, magic: 0 };
-
-      if (entity.effects && entity.effects.length > 0) {
-        entity.effects.forEach(eff => {
-          if (eff.mods) {
-            mods.hit += eff.mods.hit || 0;
-            mods.evasion += eff.mods.evasion || 0;
-            mods.armor += eff.mods.armor || 0;
-            mods.magic += eff.mods.magic || 0;
-          }
-        });
-      }
-
-      return {
-        base,
-        mods,
-        effective: {
-          hit: base.hit + mods.hit,
-          evasion: base.evasion + mods.evasion,
-          armor: base.armor + mods.armor,
-          magic: base.magic + mods.magic
-        }
-      };
-    }
-
-    function renderStatBadge(label, baseVal, modVal, effVal, customColorClass, hideStats) {
-      if (hideStats) {
-        return `
-          <div>
-            <span class="text-[10px] text-slate-500 block">${label}</span>
-            <span class="font-bold text-slate-400">??</span>
-          </div>
-        `;
-      }
-
-      let modText = '';
-      let colorClass = customColorClass || 'text-slate-100';
-
-      if (modVal > 0) {
-        modText = `<span class="text-[9px] text-emerald-400 font-normal"> (+${modVal})</span>`;
-        colorClass = 'text-emerald-300 font-bold';
-      } else if (modVal < 0) {
-        modText = `<span class="text-[9px] text-red-400 font-normal"> (${modVal})</span>`;
-        colorClass = 'text-red-300 font-bold';
-      }
-
-      return `
-        <div>
-          <span class="text-[10px] text-slate-400 block">${label}</span>
-          <span class="font-bold ${colorClass}">${effVal}</span>${modText}
-        </div>
-      `;
-    }
-
-    function renderStatusBadges(entity) {
-      const currentStatuses = entity.statuses || [];
-      return STATUS_PRESETS.map(preset => {
-        const active = currentStatuses.includes(preset.id);
-        const activeStyle = active ? preset.color : 'text-slate-600 bg-slate-900 border-slate-800 opacity-50 hover:opacity-100';
-        return `
-          <button onclick="toggleStatus('${entity.id}', '${preset.id}')" class="text-[10px] px-1.5 py-0.5 rounded border transition flex items-center gap-1 ${activeStyle}">
-            <i class="fa-solid ${preset.icon} text-[9px]"></i> ${preset.label}
-          </button>
-        `;
-      }).join('');
-    }
-
-    function renderEffectsList(entity) {
-      if (!entity.effects || entity.effects.length === 0) {
-        return `<div class="text-[10px] text-slate-600 italic">無持續效果</div>`;
-      }
-      return entity.effects.map(eff => `
-        <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[11px]">
-          <div class="flex items-center gap-1.5">
-            <span class="font-semibold text-amber-300">${escapeHtml(eff.name)}</span>
-            <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-400 border border-amber-800/60 font-mono">剩 ${eff.rounds} R</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <button onclick="adjustEffectRound('${entity.id}', '${eff.id}', -1)" class="text-[9px] bg-slate-800 hover:bg-slate-700 px-1 rounded border border-slate-700 text-slate-300 font-mono">-1R</button>
-            <button onclick="adjustEffectRound('${entity.id}', '${eff.id}', 1)" class="text-[9px] bg-slate-800 hover:bg-slate-700 px-1 rounded border border-slate-700 text-slate-300 font-mono">+1R</button>
-            <button onclick="removeEffect('${entity.id}', '${eff.id}')" class="text-slate-500 hover:text-red-400 text-[10px] ml-1">
-              <i class="fa-solid fa-xmark"></i>
-            </button>
-          </div>
-        </div>
-      `).join('');
+      modal.classList.remove('hidden');
     }
 
     function closeUnitModal() {
       document.getElementById('unit-modal').classList.add('hidden');
-    }
-
-    // --- ROOM & SHARING MODAL CONTROLS ---
-    function openRoomModal() {
-      document.getElementById('room-modal').classList.remove('hidden');
-    }
-
-    function closeRoomModal() {
-      document.getElementById('room-modal').classList.add('hidden');
-    }
-
-    function createShareRoom() {
-      const code = 'SW-' + Math.floor(1000 + Math.random() * 9000);
-      activeRoomCode = code;
-      document.getElementById('current-room-code-display').innerText = code;
-      document.getElementById('room-role-tag').innerText = '身份：房主 (GM 主端)';
-      document.getElementById('active-room-box').classList.remove('hidden');
-      document.getElementById('room-actions-box').classList.add('hidden');
-      updateShareBtnLabel();
-
-      if (window.cloudSync && window.cloudSync.isConfigured()) {
-        window.cloudSync.pushState(code, state);
-      }
-
-      setRole('gm');
-      showToast(`連線房間已建立！房間代碼：${code}`);
-    }
-
-    function joinShareRoom() {
-      const input = document.getElementById('join-room-input').value.trim().toUpperCase();
-      if (!input) {
-        showToast('請輸入房間號代碼', 'warning');
-        return;
-      }
-
-      activeRoomCode = input;
-      document.getElementById('current-room-code-display').innerText = input;
-      document.getElementById('room-role-tag').innerText = '身份：觀戰/玩家 (客端)';
-      document.getElementById('active-room-box').classList.remove('hidden');
-      document.getElementById('room-actions-box').classList.add('hidden');
-      updateShareBtnLabel();
-
-      if (window.cloudSync && window.cloudSync.isConfigured()) {
-        window.cloudSync.listenRoom(input, (remoteState) => {
-          if (remoteState) {
-            state = remoteState;
-            renderApp();
-            showToast('已從雲端同步最新戰況');
-          }
-        }, (errMsg) => {
-          showToast(errMsg, 'warning');
-        });
-      }
-
-      setRole('player');
-      closeRoomModal();
-    }
-
-    function leaveRoom() {
-      if (window.cloudSync) window.cloudSync.stopListen();
-      activeRoomCode = null;
-      document.getElementById('active-room-box').classList.add('hidden');
-      document.getElementById('room-actions-box').classList.remove('hidden');
-      updateShareBtnLabel();
-      showToast('已離開連線房間');
-    }
-
-    function copyRoomCode() {
-      if (!activeRoomCode) return;
-      const dummy = document.createElement('textarea');
-      document.body.appendChild(dummy);
-      dummy.value = activeRoomCode;
-      dummy.select();
-      document.execCommand('copy');
-      document.body.removeChild(dummy);
-      showToast(`已複製房間號：${activeRoomCode}`);
-    }
-
-    function updateShareBtnLabel() {
-      const label = document.getElementById('share-btn-label');
-      if (label) {
-        label.innerText = activeRoomCode ? `連線中: ${activeRoomCode}` : '畫面/房間分享';
-      }
-    }
-
-    // --- COMBAT MODE SWITCHER ---
-    function setCombatMode(mode) {
-      state.combatMode = mode;
-      const stdBtn = document.getElementById('mode-btn-standard');
-      const gridBtn = document.getElementById('mode-btn-grid');
-      const gridContainer = document.getElementById('grid-mode-container');
-      const fieldGrid = document.getElementById('battlefield-grid');
-
-      stdBtn.className = 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
-      gridBtn.className = 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
-
-      if (mode === 'grid') {
-        gridBtn.className = 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-indigo-600 text-white shadow';
-        gridContainer.classList.remove('hidden');
-        fieldGrid.classList.add('hidden');
-        showToast('已切換為：2D 戰術棋盤地圖');
-      } else {
-        stdBtn.className = 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-blue-600 text-white shadow';
-        gridContainer.classList.add('hidden');
-        fieldGrid.classList.remove('hidden');
-        showToast('已切換為：SW 2.5 區域戰鬥模式');
-      }
-
-      saveState();
-      renderApp();
-    }
-
-    // --- 2D GRID BOARD LOGIC ---
-    function updateGridScale(val) {
-      state.gridScale = parseInt(val, 10) || 3;
-      saveState();
-      renderApp();
-    }
-
-    function clearGridSelection() {
-      state.selectedGridUnitId = null;
-      renderApp();
-    }
-
-    function selectGridToken(unitId) {
-      state.selectedGridUnitId = unitId;
-      renderApp();
-    }
-
-    function moveGridToken(unitId, targetX, targetY) {
-      const unit = state.entities.find(e => e.id === unitId);
-      if (!unit) return;
-      unit.gridX = targetX;
-      unit.gridY = targetY;
-      saveState();
-      renderApp();
-      showToast(`已移動 ${unit.name} 至格點 (${targetX}, ${targetY})`);
-    }
-
-    function renderGridBoard() {
-      const board = document.getElementById('tactical-board');
-      const infoBox = document.getElementById('grid-selection-info');
-      const selectedPanel = document.getElementById('grid-selected-unit-panel');
-      if (!board) return;
-
-      board.innerHTML = '';
-      const selectedUnit = state.entities.find(e => e.id === state.selectedGridUnitId);
-
-      // Render Selected Unit Card Side Panel
-      if (selectedPanel) {
-        selectedPanel.innerHTML = '';
-        if (selectedUnit) {
-          selectedPanel.appendChild(createEntityCardDOM(selectedUnit));
-        } else {
-          selectedPanel.innerHTML = `
-            <div class="h-full min-h-[360px] bg-slate-900 border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center p-6 text-center text-slate-500">
-              <i class="fa-solid fa-hand-pointer text-3xl mb-2 text-slate-600 animate-bounce"></i>
-              <p class="text-xs font-bold text-slate-400">尚未選擇棋子</p>
-              <p class="text-[11px] text-slate-600 mt-1">請在左側戰術棋盤點擊任意棋子以檢視其詳細數據與進行操作</p>
-            </div>
-          `;
-        }
-      }
-
-      if (selectedUnit && infoBox) {
-        const speed = selectedUnit.moveSpeed || 12;
-        const maxCells = Math.floor(speed / state.gridScale);
-        infoBox.innerHTML = `<span class="text-white">${selectedUnit.name}</span> 移動力: ${speed}m (約 ${maxCells} 格)`;
-      } else if (infoBox) {
-        infoBox.innerText = '點擊棋子檢視移動射程與詳細數據';
-      }
-
-      // Check melee proximity pairs
-      const enemyUnits = state.entities.filter(e => e.faction === 'enemy');
-      const playerUnits = state.entities.filter(e => e.faction === 'player' || e.faction === 'ally');
-
-      const isMeleeCell = (gx, gy) => {
-        return playerUnits.some(pu => {
-          const pDist = Math.abs((pu.gridX || 1) - gx) + Math.abs((pu.gridY || 1) - gy);
-          if (pDist > 1) return false;
-          return enemyUnits.some(eu => {
-            const eDist = Math.abs((eu.gridX || 1) - gx) + Math.abs((eu.gridY || 1) - gy);
-            return eDist <= 1;
-          });
-        });
-      };
-
-      for (let y = 1; y <= 12; y++) {
-        for (let x = 1; x <= 12; x++) {
-          const cell = document.createElement('div');
-          const isMelee = isMeleeCell(x, y);
-          let cellBg = 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/60';
-
-          if (isMelee) {
-            cellBg = 'bg-amber-950/20 border-amber-500/50 shadow-inner';
-          }
-
-          // Highlight reachable range if a unit is selected
-          if (selectedUnit) {
-            const sx = selectedUnit.gridX || 1;
-            const sy = selectedUnit.gridY || 1;
-            const distCells = Math.max(Math.abs(sx - x), Math.abs(sy - y));
-            const moveSpeed = selectedUnit.moveSpeed || 12;
-            const resCells = 1;
-            const normCells = Math.floor(moveSpeed / state.gridScale);
-            const fullCells = normCells * 3;
-
-            if (x === sx && y === sy) {
-              cellBg = 'bg-indigo-900/60 border-indigo-400 shadow-md';
-            } else if (distCells <= resCells) {
-              cellBg = 'bg-sky-950/40 border-sky-600/60';
-            } else if (distCells <= normCells) {
-              cellBg = 'bg-emerald-950/30 border-emerald-600/40';
-            } else if (distCells <= fullCells) {
-              cellBg = 'bg-amber-950/30 border-amber-600/40';
-            }
-          }
-
-          cell.className = `w-12 h-12 md:w-14 md:h-14 border rounded-xl flex flex-col items-center justify-center relative cursor-pointer transition ${cellBg}`;
-          
-          cell.onclick = () => {
-            if (selectedUnit) {
-              moveGridToken(selectedUnit.id, x, y);
-            }
-          };
-
-          // Find unit occupying this cell
-          const unit = state.entities.find(e => (e.gridX || 1) === x && (e.gridY || 1) === y);
-          if (unit) {
-            const isGM = (currentRole === 'gm');
-            const isEnemy = (unit.faction === 'enemy');
-            const hideName = (!isGM && isEnemy && state.settings.hideMonsterNames);
-
-            let nameStr = unit.name;
-            if (hideName) {
-              const enemyList = state.entities.filter(e => e.faction === 'enemy');
-              const idx = enemyList.findIndex(e => e.id === unit.id) + 1;
-              nameStr = `#${idx > 0 ? idx : 1}`;
-            }
-
-            let tokenBg = 'bg-emerald-600 border-emerald-300';
-            if (unit.faction === 'enemy') tokenBg = 'bg-red-600 border-red-300';
-            if (unit.faction === 'ally') tokenBg = 'bg-purple-600 border-purple-300';
-
-            const isSelectedToken = selectedUnit && selectedUnit.id === unit.id;
-            const selectedRing = isSelectedToken ? 'ring-4 ring-amber-400 scale-105 z-20' : '';
-
-            const token = document.createElement('div');
-            token.className = `w-9 h-9 md:w-11 md:h-11 rounded-full border-2 ${tokenBg} flex flex-col items-center justify-center shadow-lg text-white font-bold text-[10px] md:text-xs select-none transition transform hover:scale-110 z-10 ${selectedRing}`;
-            token.innerHTML = `
-              <span class="truncate max-w-[36px] px-0.5">${escapeHtml(nameStr)}</span>
-              <span class="text-[8px] opacity-80">${unit.hp}HP</span>
-            `;
-
-            token.onclick = (ev) => {
-              ev.stopPropagation();
-              selectGridToken(unit.id);
-            };
-
-            cell.appendChild(token);
-          }
-
-          board.appendChild(cell);
-        }
-      }
-    }
-
-    // --- BATTLEFIELD ZONES RENDERER ---
-    function renderBattlefield() {
-      const grid = document.getElementById('battlefield-grid');
-      if (!grid) return;
-      grid.innerHTML = '';
-      renderStandardZoneView(grid);
-    }
-
-    function renderStandardZoneView(grid) {
-      grid.className = "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start";
-      
-      state.zones.forEach(zone => {
-        const zoneCol = document.createElement('div');
-        zoneCol.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col min-h-[380px] transition-colors duration-200';
-        
-        zoneCol.ondragover = (e) => { e.preventDefault(); zoneCol.classList.add('zone-drop-active'); };
-        zoneCol.ondragleave = () => { zoneCol.classList.remove('zone-drop-active'); };
-        zoneCol.ondrop = (e) => {
-          e.preventDefault();
-          zoneCol.classList.remove('zone-drop-active');
-          const unitId = e.dataTransfer.getData('text/plain');
-          if (unitId) moveEntityToZone(unitId, zone.id);
-        };
-
-        const isGM = (currentRole === 'gm');
-        const deleteBtnHTML = (isGM && zone.canDelete) ? `
-          <button onclick="deleteZone('${zone.id}')" class="text-slate-500 hover:text-red-400 text-xs transition p-1">
-            <i class="fa-solid fa-trash-can"></i>
-          </button>
-        ` : '';
-
-        zoneCol.innerHTML = `
-          <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
-            <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-              <i class="fa-solid fa-layer-group text-blue-400 text-xs"></i> ${escapeHtml(zone.name)}
-            </h3>
-            <div class="flex items-center gap-1">
-              ${deleteBtnHTML}
-            </div>
-          </div>
-          <div class="entity-card-list space-y-3 flex-1"></div>
-        `;
-
-        const listContainer = zoneCol.querySelector('.entity-card-list');
-        const unitsInZone = state.entities.filter(e => e.zoneId === zone.id);
-
-        if (unitsInZone.length === 0) {
-          listContainer.innerHTML = `<div class="h-32 border border-dashed border-slate-800 rounded-xl flex items-center justify-center text-xs text-slate-600 italic">置入單位或拖拽至此區域</div>`;
-        } else {
-          unitsInZone.forEach(unit => {
-            listContainer.appendChild(createEntityCardDOM(unit));
-          });
-        }
-
-        grid.appendChild(zoneCol);
-      });
-
-      if (currentRole === 'gm') {
-        const addZoneCard = document.createElement('button');
-        addZoneCard.onclick = addMeleeZone;
-        addZoneCard.className = 'border-2 border-dashed border-slate-800 hover:border-blue-500/60 hover:bg-slate-900/50 rounded-2xl p-6 min-h-[380px] flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-blue-400 transition group';
-        addZoneCard.innerHTML = `
-          <i class="fa-solid fa-circle-plus text-2xl group-hover:scale-110 transition-transform"></i>
-          <span class="text-xs font-bold">新增亂戰區域 (Add Melee Zone)</span>
-        `;
-        grid.appendChild(addZoneCard);
-      }
-    }
-
-    // --- ENTITY CARD DOM CREATOR ---
-    function createEntityCardDOM(unit) {
-      const card = document.createElement('div');
-      const isGM = (currentRole === 'gm');
-      const isEnemy = (unit.faction === 'enemy');
-      const canEdit = isGM || !isEnemy;
-
-      const hideStats = (!isGM && isEnemy && state.settings.hideMonsterStats);
-      const hideName = (!isGM && isEnemy && state.settings.hideMonsterNames);
-
-      let displayName = unit.name;
-      if (hideName) {
-        const enemyList = state.entities.filter(e => e.faction === 'enemy');
-        const idx = enemyList.findIndex(e => e.id === unit.id) + 1;
-        displayName = `未知魔物 #${idx > 0 ? idx : 1}`;
-      }
-
-      const statData = getEffectiveStats(unit);
-      const eff = statData.effective;
-      const mods = statData.mods;
-
-      const hpPercent = Math.max(0, Math.min(100, Math.round((unit.hp / unit.maxHp) * 100)));
-      const mpPercent = unit.maxMp > 0 ? Math.max(0, Math.min(100, Math.round((unit.mp / unit.maxMp) * 100))) : 0;
-
-      const borderColor = getFactionBorderColor(unit.faction);
-      const factionBadge = getFactionBadge(unit.faction);
-
-      card.className = `bg-slate-900 border rounded-xl p-3.5 shadow-lg space-y-3 transition hover:border-slate-700 ${borderColor}`;
-      card.setAttribute('draggable', 'true');
-      card.ondragstart = (e) => { e.dataTransfer.setData('text/plain', unit.id); };
-
-      const damageTaken = Math.max(0, unit.maxHp - unit.hp);
-      const hpDisplayText = hideStats ? `?? / ?? <span class="text-[10px] text-red-400 font-normal">(已受 ${damageTaken} 傷害)</span>` : `${unit.hp} / ${unit.maxHp}`;
-      const mpDisplayText = hideStats ? `?? / ??` : `${unit.mp} / ${unit.maxMp}`;
-
-      const resourceBtns = canEdit ? `
-        <div class="flex items-center gap-1 mt-1">
-          <button onclick="adjustResource('${unit.id}', 'hp', -5)" class="text-[10px] bg-red-950 hover:bg-red-900 text-red-300 px-1.5 py-0.5 rounded border border-red-800 font-mono">-5</button>
-          <button onclick="adjustResource('${unit.id}', 'hp', -1)" class="text-[10px] bg-red-950 hover:bg-red-900 text-red-300 px-1.5 py-0.5 rounded border border-red-800 font-mono">-1</button>
-          <button onclick="adjustResource('${unit.id}', 'hp', 1)" class="text-[10px] bg-emerald-950 hover:bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-mono">+1</button>
-          <button onclick="adjustResource('${unit.id}', 'hp', 5)" class="text-[10px] bg-emerald-950 hover:bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-mono">+5</button>
-        </div>
-      ` : '';
-
-      const editActionsHTML = canEdit ? `
-        <button onclick="openUnitModal('${unit.id}')" class="text-slate-500 hover:text-blue-400 text-xs transition p-1">
-          <i class="fa-solid fa-pen-to-square"></i>
-        </button>
-        <button onclick="deleteEntity('${unit.id}')" class="text-slate-500 hover:text-red-400 text-xs transition p-1">
-          <i class="fa-solid fa-trash"></i>
-        </button>
-      ` : '';
-
-      const mainActionState = unit.actions.main ? 'checked' : '';
-      const subActionState = unit.actions.sub ? 'checked' : '';
-      const skillDeclaredState = unit.actions.skillDeclared ? 'checked' : '';
-      const actionDisabled = canEdit ? '' : 'disabled';
-
-      card.innerHTML = `
-        <div class="flex items-start justify-between gap-2">
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-sm text-slate-100 truncate max-w-[150px]">${escapeHtml(displayName)}</span>
-            ${factionBadge}
-          </div>
-          <div class="flex items-center gap-1">
-            ${editActionsHTML}
-          </div>
-        </div>
-
-        <div class="space-y-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
-          <div>
-            <div class="flex justify-between text-xs font-bold mb-1">
-              <span class="text-red-400 flex items-center gap-1"><i class="fa-solid fa-heart text-[10px]"></i> HP</span>
-              <span class="font-mono text-slate-200">${hpDisplayText}</span>
-            </div>
-            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div class="h-full bg-gradient-to-r from-red-600 to-red-500 transition-all duration-300" style="width: ${hpPercent}%"></div>
-            </div>
-          </div>
-
-          <div>
-            <div class="flex justify-between text-xs font-bold mb-1">
-              <span class="text-blue-400 flex items-center gap-1"><i class="fa-solid fa-bolt text-[10px]"></i> MP</span>
-              <span class="font-mono text-slate-200">${mpDisplayText}</span>
-            </div>
-            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div class="h-full bg-gradient-to-r from-blue-600 to-blue-500 transition-all duration-300" style="width: ${mpPercent}%"></div>
-            </div>
-          </div>
-
-          ${resourceBtns}
-        </div>
-
-        <div class="grid grid-cols-4 gap-1 text-center bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-          ${renderStatBadge('命中', unit.stats.hit, mods.hit, eff.hit, 'text-slate-100', hideStats)}
-          ${renderStatBadge('迴避', unit.stats.evasion, mods.evasion, eff.evasion, 'text-slate-100', hideStats)}
-          ${renderStatBadge('防護', unit.stats.armor, mods.armor, eff.armor, 'text-slate-100', hideStats)}
-          ${renderStatBadge('魔力', unit.stats.magic, mods.magic, eff.magic, 'text-slate-100', hideStats)}
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 border-t border-slate-800">
-          <label class="flex items-center gap-1 cursor-pointer select-none">
-            <input type="checkbox" ${mainActionState} ${actionDisabled} onchange="toggleAction('${unit.id}', 'main')" class="rounded border-slate-700 bg-slate-950 text-amber-500">
-            <span class="${unit.actions.main ? 'line-through text-slate-500' : 'text-slate-300'}">主動作</span>
-          </label>
-          <label class="flex items-center gap-1 cursor-pointer select-none">
-            <input type="checkbox" ${subActionState} ${actionDisabled} onchange="toggleAction('${unit.id}', 'sub')" class="rounded border-slate-700 bg-slate-950 text-amber-500">
-            <span class="${unit.actions.sub ? 'line-through text-slate-500' : 'text-slate-300'}">補助動作</span>
-          </label>
-          <label class="flex items-center gap-1 cursor-pointer select-none">
-            <input type="checkbox" ${skillDeclaredState} ${actionDisabled} onchange="toggleAction('${unit.id}', 'skillDeclared')" class="rounded border-slate-700 bg-slate-950 text-amber-500">
-            <span class="${unit.actions.skillDeclared ? 'text-amber-400 font-bold' : 'text-slate-400'}">宣告特技</span>
-          </label>
-        </div>
-
-        ${canEdit ? `
-          <div class="flex items-center gap-1 text-[11px] bg-slate-950 p-1 rounded-lg border border-slate-800">
-            <span class="text-slate-400 pl-1">移動:</span>
-            <select onchange="setEntityMoveType('${unit.id}', this.value)" class="flex-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200">
-              <option value="none" ${unit.moveType === 'none' ? 'selected' : ''}>未移動</option>
-              <option value="restricted" ${unit.moveType === 'restricted' ? 'selected' : ''}>制限移動 (3m)</option>
-              <option value="normal" ${unit.moveType === 'normal' ? 'selected' : ''}>通常移動 (${unit.moveSpeed || 12}m)</option>
-              <option value="full" ${unit.moveType === 'full' ? 'selected' : ''}>全力移動 (${(unit.moveSpeed || 12)*3}m)</option>
-            </select>
-          </div>
-        ` : ''}
-
-        <div class="flex flex-wrap gap-1 pt-1">
-          ${renderStatusBadges(unit)}
-        </div>
-
-        <div class="space-y-1.5 pt-2 border-t border-slate-800">
-          <div class="flex justify-between items-center">
-            <span class="text-xs font-bold text-amber-400 flex items-center gap-1">
-              <i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i> 持續效果 / Buff
-            </span>
-            ${canEdit ? `
-              <button onclick="openEffectModal('${unit.id}')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800/60 px-1.5 py-0.5 rounded transition flex items-center gap-1">
-                <i class="fa-solid fa-plus"></i> 新增 Buff
-              </button>
-            ` : ''}
-          </div>
-          <div class="space-y-1">
-            ${renderEffectsList(unit)}
-          </div>
-        </div>
-      `;
-
-      return card;
-    }
-
-    // --- UNIT FORM & MODAL HANDLERS ---
-    function openUnitModal(unitId) {
-      const modal = document.getElementById('unit-modal');
-      const title = document.getElementById('modal-title');
-      const zoneSelect = document.getElementById('unit-zone');
-
-      zoneSelect.innerHTML = state.zones.map(z => `<option value="${z.id}">${escapeHtml(z.name)}</option>`).join('');
-
-      if (unitId) {
-        const unit = state.entities.find(e => e.id === unitId);
-        if (!unit) return;
-
-        title.innerText = '編輯單位數據';
-        document.getElementById('unit-id').value = unit.id;
-        document.getElementById('unit-name').value = unit.name;
-        document.getElementById('unit-faction').value = unit.faction;
-        document.getElementById('unit-zone').value = unit.zoneId || state.zones[0].id;
-        document.getElementById('unit-hit').value = unit.stats.hit;
-        document.getElementById('unit-evasion').value = unit.stats.evasion;
-        document.getElementById('unit-armor').value = unit.stats.armor;
-        document.getElementById('unit-magic').value = unit.stats.magic;
-        document.getElementById('unit-move-speed').value = unit.moveSpeed || 12;
-      } else {
-        title.innerText = '新增單位 / 魔物';
-        document.getElementById('unit-id').value = '';
-        document.getElementById('unit-name').value = '';
-        document.getElementById('unit-faction').value = 'enemy';
-        document.getElementById('unit-zone').value = state.zones[0].id;
-        document.getElementById('unit-hit').value = 12;
-        document.getElementById('unit-evasion').value = 11;
-        document.getElementById('unit-armor').value = 4;
-        document.getElementById('unit-magic').value = 0;
-        document.getElementById('unit-move-speed').value = 12;
-      }
-
-      modal.classList.remove('hidden');
     }
 
     function handleUnitFormSubmit(e) {
@@ -1512,92 +501,502 @@
       const name = document.getElementById('unit-name').value.trim();
       const faction = document.getElementById('unit-faction').value;
       const zoneId = document.getElementById('unit-zone').value;
-      const hit = parseInt(document.getElementById('unit-hit').value, 10) || 0;
-      const evasion = parseInt(document.getElementById('unit-evasion').value, 10) || 0;
-      const armor = parseInt(document.getElementById('unit-armor').value, 10) || 0;
-      const magic = parseInt(document.getElementById('unit-magic').value, 10) || 0;
-      const moveSpeed = parseInt(document.getElementById('unit-move-speed').value, 10) || 12;
-
-      if (!name) return;
+      const hit = parseInt(document.getElementById('unit-hit').value) || 0;
+      const evasion = parseInt(document.getElementById('unit-evasion').value) || 0;
+      const armor = parseInt(document.getElementById('unit-armor').value) || 0;
+      const magic = parseInt(document.getElementById('unit-magic').value) || 0;
+      const moveSpeed = parseInt(document.getElementById('unit-move-speed').value) || 10;
 
       if (id) {
-        const unit = state.entities.find(e => e.id === id);
+        const unit = state.units.find(u => u.id === id);
         if (unit) {
           unit.name = name;
           unit.faction = faction;
           unit.zoneId = zoneId;
+          unit.baseHit = hit;
+          unit.baseEvasion = evasion;
+          unit.baseArmor = armor;
+          unit.baseMagic = magic;
           unit.moveSpeed = moveSpeed;
-          unit.stats = { hit, evasion, armor, magic };
-          showToast(`已儲存單位：${name}`);
         }
       } else {
-        const defaultHp = faction === 'enemy' ? 30 : 25;
-        const defaultMp = 15;
-
         const newUnit = {
-          id: `unit-${Date.now()}`,
+          id: 'u-' + Date.now(),
           name,
           faction,
           zoneId,
-          gridX: Math.floor(Math.random() * 8) + 1,
-          gridY: Math.floor(Math.random() * 8) + 1,
-          moveSpeed,
-          moveType: 'none',
-          hp: defaultHp,
-          maxHp: defaultHp,
-          mp: defaultMp,
-          maxMp: defaultMp,
-          stats: { hit, evasion, armor, magic },
-          actions: { main: false, sub: false, skillDeclared: false },
-          statuses: [],
+          gridPos: { x: Math.floor(Math.random() * 8) + 2, y: Math.floor(Math.random() * 8) + 2 },
+          hp: { current: 30, max: 30 },
+          mp: { current: 15, max: 15 },
+          baseHit: hit,
+          baseEvasion: evasion,
+          baseArmor: armor,
+          baseMagic: magic,
+          moveSpeed: moveSpeed,
+          actions: { main: false, sub: false },
           effects: []
         };
-        state.entities.push(newUnit);
-        showToast(`已新增單位：${name}`);
+        state.units.push(newUnit);
       }
-
-      saveState();
-      renderApp();
       closeUnitModal();
+      renderApp();
+      showToast('單位資料已成功儲存', 'success');
     }
 
-    function deleteEntity(unitId) {
-      const unit = state.entities.find(e => e.id === unitId);
-      if (!unit) return;
-
-      if (confirm(`確定要刪除「${unit.name}」嗎？`)) {
-        state.entities = state.entities.filter(e => e.id !== unitId);
-        saveState();
-        renderApp();
-        showToast(`已刪除單位`);
-      }
-    }
-
-    function setEntityMoveType(unitId, moveType) {
-      const unit = state.entities.find(e => e.id === unitId);
-      if (!unit) return;
-      unit.moveType = moveType;
-      saveState();
+    // Role & Fog of War Management
+    function setRole(role) {
+      state.role = role;
+      document.getElementById('role-btn-gm').className = role === 'gm' ? 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-amber-500 text-slate-950 shadow' : 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
+      document.getElementById('role-btn-player').className = role === 'player' ? 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-emerald-500 text-slate-950 shadow' : 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
       renderApp();
     }
 
-    // --- MAIN RENDERER ENGINE ---
-    function renderApp() {
-      const roundDisp = document.getElementById('round-display');
-      if (roundDisp) roundDisp.innerText = state.round;
-
-      updateFogOfWarButtonsUI();
-
-      if (state.combatMode === 'grid') {
-        renderGridBoard();
+    function setCombatMode(mode) {
+      state.combatMode = mode;
+      document.getElementById('mode-btn-standard').className = mode === 'standard' ? 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-blue-600 text-white shadow' : 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
+      document.getElementById('mode-btn-grid').className = mode === 'grid' ? 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-blue-600 text-white shadow' : 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
+      
+      const gridContainer = document.getElementById('grid-mode-container');
+      const standardContainer = document.getElementById('battlefield-grid');
+      if (mode === 'grid') {
+        gridContainer.classList.remove('hidden');
+        standardContainer.classList.add('hidden');
       } else {
-        renderBattlefield();
+        gridContainer.classList.add('hidden');
+        standardContainer.classList.remove('hidden');
+      }
+      renderApp();
+    }
+
+    function toggleMonsterStatsVisibility() {
+      state.showMonsterStats = !state.showMonsterStats;
+      updateFogOfWarButtonsUI();
+      renderApp();
+    }
+
+    function toggleMonsterNamesVisibility() {
+      state.showMonsterNames = !state.showMonsterNames;
+      updateFogOfWarButtonsUI();
+      renderApp();
+    }
+
+    function updateFogOfWarButtonsUI() {
+      const statsBtn = document.getElementById('btn-toggle-stats');
+      const namesBtn = document.getElementById('btn-toggle-names');
+
+      if (state.showMonsterStats) {
+        statsBtn.className = 'px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5 bg-emerald-950/80 text-emerald-300 border border-emerald-700 hover:bg-emerald-900/80 shadow-sm';
+        statsBtn.innerHTML = `<i class="fa-solid fa-eye text-emerald-400"></i> <span>數值：顯示中</span>`;
+      } else {
+        statsBtn.className = 'px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5 bg-rose-950/80 text-rose-300 border border-rose-700 hover:bg-rose-900/80 shadow-sm';
+        statsBtn.innerHTML = `<i class="fa-solid fa-eye-slash text-rose-400"></i> <span>數值：隱藏中</span>`;
+      }
+
+      if (state.showMonsterNames) {
+        namesBtn.className = 'px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5 bg-indigo-950/80 text-indigo-300 border border-indigo-700 hover:bg-indigo-900/80 shadow-sm';
+        namesBtn.innerHTML = `<i class="fa-solid fa-eye text-indigo-400"></i> <span>名稱：顯示中</span>`;
+      } else {
+        namesBtn.className = 'px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5 bg-rose-950/80 text-rose-300 border border-rose-700 hover:bg-rose-900/80 shadow-sm';
+        namesBtn.innerHTML = `<i class="fa-solid fa-eye-slash text-rose-400"></i> <span>名稱：隱藏中</span>`;
       }
     }
 
-    // --- ON LOAD INITIALIZATION ---
+    function nextRound() {
+      state.round += 1;
+      document.getElementById('round-display').innerText = state.round;
+      state.units.forEach(u => {
+        u.actions.main = false;
+        u.actions.sub = false;
+        u.effects.forEach(e => e.rounds -= 1);
+        u.effects = u.effects.filter(e => e.rounds > 0);
+      });
+      renderApp();
+      showToast(`進入第 ${state.round} 輪`, 'info');
+    }
+
+    // Effect Modals
+    function openEffectModal(unitId) {
+      document.getElementById('effect-target-id').value = unitId;
+      document.getElementById('effect-modal').classList.remove('hidden');
+    }
+    function closeEffectModal() {
+      document.getElementById('effect-modal').classList.add('hidden');
+    }
+    function applyEffectPreset(val) {
+      if (!val) return;
+      const presets = {
+        DEFENSE: { name: '《防禦術》', rounds: 3, stat: 'armor', val: 1 },
+        CATS_EYE: { name: '《貓之眼》', rounds: 3, stat: 'hit', val: 1 },
+        RABBIT_FOOT: { name: '《兔之足》', rounds: 3, stat: 'evasion', val: 1 },
+        HOLY_ARMOR: { name: '《神聖護甲》', rounds: 3, stat: 'armor', val: 2 },
+        ARMOR_BREAK: { name: '《破甲》', rounds: 3, stat: 'armor', val: -2 }
+      };
+      const p = presets[val];
+      if (p) {
+        document.getElementById('effect-name').value = p.name;
+        document.getElementById('effect-rounds').value = p.rounds;
+        document.getElementById('effect-stat').value = p.stat;
+        document.getElementById('effect-val').value = p.val;
+      }
+    }
+    function saveEffect(e) {
+      e.preventDefault();
+      const targetId = document.getElementById('effect-target-id').value;
+      const unit = state.units.find(u => u.id === targetId);
+      if (unit) {
+        unit.effects.push({
+          id: 'e-' + Date.now(),
+          name: document.getElementById('effect-name').value.trim(),
+          rounds: parseInt(document.getElementById('effect-rounds').value) || 1,
+          stat: document.getElementById('effect-stat').value,
+          val: parseInt(document.getElementById('effect-val').value) || 0
+        });
+      }
+      closeEffectModal();
+      renderApp();
+    }
+
+    // Room Modals
+    function openRoomModal() { document.getElementById('room-modal').classList.remove('hidden'); }
+    function closeRoomModal() { document.getElementById('room-modal').classList.add('hidden'); }
+    function createShareRoom() {
+      const code = 'SW-' + Math.floor(1000 + Math.random() * 9000);
+      document.getElementById('active-room-code-display').innerText = code;
+      document.getElementById('active-room-info').classList.remove('hidden');
+      document.getElementById('share-btn-label').innerText = code;
+      setRole('gm');
+      showToast(`戰鬥房間 ${code} 建立成功`, 'success');
+    }
+    function joinShareRoom() {
+      const code = document.getElementById('join-room-code').value.trim().toUpperCase();
+      if (!code) return;
+      document.getElementById('active-room-code-display').innerText = code;
+      document.getElementById('active-room-info').classList.remove('hidden');
+      document.getElementById('share-btn-label').innerText = code;
+      setRole('player');
+      showToast(`已加入房間 ${code}`, 'success');
+    }
+    function leaveRoom() {
+      document.getElementById('active-room-info').classList.add('hidden');
+      document.getElementById('share-btn-label').innerText = '畫面/房間分享';
+      showToast('已離開連線房間', 'info');
+    }
+    function copyRoomCode() {
+      const code = document.getElementById('active-room-code-display').innerText;
+      navigator.clipboard ? navigator.clipboard.writeText(code) : null;
+      showToast('已複製房間代碼', 'info');
+    }
+
+    // Grid Tool Actions
+    function setGridTool(tool) {
+      state.gridTool = tool;
+      document.getElementById('grid-tool-select').className = tool === 'select' ? 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-indigo-600 text-white shadow' : 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
+      document.getElementById('grid-tool-paint').className = tool === 'paint' ? 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 bg-amber-600 text-white shadow' : 'px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 text-slate-400 hover:text-slate-200';
+      
+      const paintBox = document.getElementById('paint-zone-selector-box');
+      if (tool === 'paint') paintBox.classList.remove('hidden');
+      else paintBox.classList.add('hidden');
+    }
+    function updateGridScale(val) {
+      state.gridScale = parseInt(val) || 3;
+      renderApp();
+    }
+
+    // SW 2.5 亂戰區域動態運算與自動消解 Engine
+    function recalculateMeleeZones() {
+      const players = state.units.filter(u => (u.faction === 'player' || u.faction === 'ally') && u.gridPos);
+      const enemies = state.units.filter(u => u.faction === 'enemy' && u.gridPos);
+
+      const activeMeleeCells = new Set();
+      const engagedUnits = new Set();
+
+      // 檢查所有敵我配對是否相鄰 (Chebyshev 距離 <= 1 格，即 3 米接觸半徑)
+      players.forEach(p => {
+        enemies.forEach(e => {
+          const dx = Math.abs(p.gridPos.x - e.gridPos.x);
+          const dy = Math.abs(p.gridPos.y - e.gridPos.y);
+          if (dx <= 1 && dy <= 1) {
+            // 標記兩單位所在的格點
+            activeMeleeCells.add(`${p.gridPos.x},${p.gridPos.y}`);
+            activeMeleeCells.add(`${e.gridPos.x},${e.gridPos.y}`);
+            engagedUnits.add(p);
+            engagedUnits.add(e);
+          }
+        });
+      });
+
+      // 取得或建立亂戰區物件
+      let meleeZone = state.zones.find(z => z.isMelee);
+      if (!meleeZone) {
+        meleeZone = { id: 'melee-1', name: '亂戰區域 #1', isMelee: true, gridCells: [] };
+        state.zones.push(meleeZone);
+      }
+
+      // 重設格點清單：僅保留目前確實有敵我接觸的格點（單位移走後自動消解舊亂戰格）
+      meleeZone.gridCells = Array.from(activeMeleeCells);
+
+      // 同步更新所有單位的 zoneId 狀態
+      state.units.forEach(u => {
+        if (engagedUnits.has(u)) {
+          u.zoneId = meleeZone.id;
+        } else if (u.zoneId === meleeZone.id) {
+          // 若不在亂戰中，自動恢復為後衛區
+          u.zoneId = u.faction === 'enemy' ? 'enemy-rear' : 'player-rear';
+        }
+      });
+    }
+
+    function autoDetectGridMeleeZones() {
+      recalculateMeleeZones();
+      const meleeZone = state.zones.find(z => z.isMelee);
+      const count = meleeZone ? meleeZone.gridCells.length : 0;
+      renderApp();
+      if (count > 0) {
+        showToast(`已成功自動偵測並劃定亂戰區（包含 ${count} 個接觸格點）`, 'success');
+      } else {
+        showToast('目前沒有敵我接觸 (1格/3m內)，所有亂戰區已消解', 'info');
+      }
+    }
+
+    function clearGridMeleeZones() {
+      state.zones.forEach(z => z.gridCells = []);
+      renderApp();
+      showToast('已清空棋盤亂戰區域', 'info');
+    }
+
+    function clearGridSelection() {
+      state.selectedUnitId = null;
+      renderApp();
+    }
+
+    // Dynamic Effective Stats Helper
+    function getEffectiveStats(unit) {
+      let stats = { hit: unit.baseHit, evasion: unit.baseEvasion, armor: unit.baseArmor, magic: unit.baseMagic };
+      unit.effects.forEach(e => {
+        if (e.stat && stats.hasOwnProperty(e.stat)) {
+          stats[e.stat] += e.val;
+        }
+      });
+      return stats;
+    }
+
+    // Main App Renderer
+    function renderApp() {
+      document.getElementById('round-display').innerText = state.round;
+      
+      // Update zone paint select options
+      const paintSelect = document.getElementById('grid-paint-zone-select');
+      if (paintSelect) {
+        paintSelect.innerHTML = state.zones.filter(z => z.isMelee).map(z => `<option value="${z.id}">${z.name}</option>`).join('');
+      }
+
+      renderStandardZones();
+      renderGridBoard();
+    }
+
+    function renderStandardZones() {
+      const container = document.getElementById('battlefield-grid');
+      if (!container) return;
+      container.innerHTML = state.zones.map(zone => {
+        const zoneUnits = state.units.filter(u => u.zoneId === zone.id);
+        return `
+          <div class="bg-slate-900 border ${zone.isMelee ? 'border-amber-500/50 bg-amber-950/10' : 'border-slate-800'} rounded-2xl p-4 min-h-[300px] flex flex-col gap-3 shadow-lg">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+              <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                <i class="${zone.isMelee ? 'fa-solid fa-swords text-amber-400' : 'fa-solid fa-shield text-slate-400'}"></i>
+                ${zone.name}
+              </h3>
+              <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-950 text-slate-400">${zoneUnits.length} 單位</span>
+            </div>
+            <div class="flex-1 space-y-3">
+              ${zoneUnits.map(u => renderUnitCardHTML(u)).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderUnitCardHTML(unit) {
+      const isEnemy = unit.faction === 'enemy';
+      const stats = getEffectiveStats(unit);
+      const isGM = state.role === 'gm';
+      const hideStats = isEnemy && !state.showMonsterStats && !isGM;
+      const hideName = isEnemy && !state.showMonsterNames && !isGM;
+
+      const displayName = hideName ? `未知魔物 #${unit.id.slice(-2)}` : unit.name;
+
+      return `
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2 shadow">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sm ${isEnemy ? 'text-rose-400' : 'text-emerald-400'} flex items-center gap-1.5">
+              ${displayName}
+            </span>
+            ${isGM ? `
+              <button onclick="openUnitModal('${unit.id}')" class="text-xs text-slate-500 hover:text-slate-300">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+            ` : ''}
+          </div>
+          <div class="text-xs space-y-1">
+            <div class="flex justify-between text-slate-400 font-mono">
+              <span>HP: ${hideStats ? `?? / ?? (傷害: ${unit.hp.max - unit.hp.current})` : `${unit.hp.current}/${unit.hp.max}`}</span>
+              <span>MP: ${hideStats ? `?? / ??` : `${unit.mp.current}/${unit.mp.max}`}</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1 text-[11px] text-center pt-1 font-mono text-slate-300">
+              <span class="bg-slate-900 rounded py-0.5">命中:${hideStats ? '?' : stats.hit}</span>
+              <span class="bg-slate-900 rounded py-0.5">迴避:${hideStats ? '?' : stats.evasion}</span>
+              <span class="bg-slate-900 rounded py-0.5">防護:${hideStats ? '?' : stats.armor}</span>
+              <span class="bg-slate-900 rounded py-0.5">魔力:${hideStats ? '?' : stats.magic}</span>
+            </div>
+          </div>
+          ${(isGM || !isEnemy) ? `
+            <div class="pt-2 border-t border-slate-900 flex items-center justify-between gap-1 text-[11px]">
+              <button onclick="openEffectModal('${unit.id}')" class="text-amber-400 hover:underline">+ 增添 Buff</button>
+              <div class="flex gap-1 text-[10px]">
+                ${unit.effects.map(e => `<span class="bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800">${e.name} (${e.rounds}R)</span>`).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function renderGridBoard() {
+      const board = document.getElementById('tactical-board');
+      if (!board) return;
+      
+      const selectedUnit = state.selectedUnitId ? state.units.find(u => u.id === state.selectedUnitId) : null;
+      
+      // 計算選取單位的移動步數格數 (以 gridScale 為基準)
+      let normMoveGrid = 0;
+      if (selectedUnit && selectedUnit.gridPos) {
+        const speed = selectedUnit.moveSpeed || 10;
+        normMoveGrid = Math.floor(speed / state.gridScale);
+      }
+
+      let html = '';
+      for (let r = 0; r < 12; r++) {
+        for (let c = 0; c < 12; c++) {
+          const key = `${c},${r}`;
+          const isPainted = state.zones.some(z => z.isMelee && z.gridCells.includes(key));
+          const unit = state.units.find(u => u.gridPos && u.gridPos.x === c && u.gridPos.y === r);
+          const isSelected = selectedUnit && selectedUnit.gridPos && selectedUnit.gridPos.x === c && selectedUnit.gridPos.y === r;
+
+          // 移動半徑範圍計算 (1格制限, 通常移動, 全力移動)
+          let moveRangeClass = '';
+          if (selectedUnit && selectedUnit.gridPos && !unit) {
+            const dist = Math.max(Math.abs(selectedUnit.gridPos.x - c), Math.abs(selectedUnit.gridPos.y - r));
+            if (dist === 1) {
+              moveRangeClass = 'ring-1 ring-emerald-500/50 bg-emerald-950/20'; // 制限移動 3m
+            } else if (dist <= normMoveGrid) {
+              moveRangeClass = 'bg-blue-950/20'; // 通常移動
+            }
+          }
+
+          html += `
+            <div onclick="handleGridCellClick(${c}, ${r})" class="aspect-square bg-slate-900 border border-slate-800/60 rounded flex flex-col items-center justify-center relative cursor-pointer hover:border-indigo-400 transition-all select-none ${moveRangeClass} ${isPainted ? 'bg-amber-950/40 border-amber-400/80 shadow-[inset_0_0_8px_rgba(251,191,36,0.2)]' : ''} ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950 z-10' : ''}">
+              
+              <!-- 亂戰區標誌背景浮效 -->
+              ${isPainted ? `<span class="absolute top-0.5 right-0.5 text-[9px] text-amber-400 font-bold opacity-80"><i class="fa-solid fa-swords"></i></span>` : ''}
+
+              <!-- 單位 Token 繪製 -->
+              ${unit ? `
+                <div class="w-8 h-8 rounded-full ${unit.faction === 'enemy' ? 'bg-rose-600' : unit.faction === 'ally' ? 'bg-purple-600' : 'bg-emerald-600'} text-white text-[11px] font-black flex items-center justify-center shadow-lg border-2 ${isSelected ? 'border-amber-300 scale-110' : 'border-white/30'} transition-transform">
+                  ${unit.name.charAt(0)}
+                </div>
+                <span class="text-[9px] font-bold text-slate-300 truncate max-w-[90%] mt-0.5">${state.role === 'player' && unit.faction === 'enemy' && !state.showMonsterNames ? `未知` : unit.name}</span>
+              ` : ''}
+            </div>
+          `;
+        }
+      }
+      board.innerHTML = html;
+
+      // Render selected unit detail panel in grid mode
+      const panel = document.getElementById('grid-selected-unit-panel');
+      const selectionInfo = document.getElementById('grid-selection-info');
+      if (panel) {
+        if (selectedUnit) {
+          panel.innerHTML = renderUnitCardHTML(selectedUnit);
+          if (selectionInfo) {
+            selectionInfo.innerText = `選取: ${selectedUnit.name} (${selectedUnit.gridPos ? `X:${selectedUnit.gridPos.x}, Y:${selectedUnit.gridPos.y}` : '無座標'})`;
+          }
+        } else {
+          panel.innerHTML = '<div class="text-xs text-slate-500 text-center py-12 border border-dashed border-slate-800 rounded-xl">點擊棋盤上的 Token 查看詳細內容</div>';
+          if (selectionInfo) {
+            selectionInfo.innerText = '點擊棋子檢視移動射程與詳細數據';
+          }
+        }
+      }
+    }
+
+    function handleGridCellClick(x, y) {
+      if (state.gridTool === 'paint') {
+        const zone = state.zones.find(z => z.id === state.paintZoneId);
+        if (zone) {
+          const key = `${x},${y}`;
+          const idx = zone.gridCells.indexOf(key);
+          if (idx >= 0) zone.gridCells.splice(idx, 1);
+          else zone.gridCells.push(key);
+          renderApp();
+        }
+      } else {
+        const unitOnCell = state.units.find(u => u.gridPos && u.gridPos.x === x && u.gridPos.y === y);
+        
+        if (unitOnCell) {
+          // 點擊已有單位的格點：若為已選取單位則取消選取，否則切換選取該單位
+          if (state.selectedUnitId === unitOnCell.id) {
+            state.selectedUnitId = null;
+          } else {
+            state.selectedUnitId = unitOnCell.id;
+          }
+        } else if (state.selectedUnitId && state.role === 'gm') {
+          // GM 點擊空白格點：移動選取中的單位至新座標
+          const selUnit = state.units.find(u => u.id === state.selectedUnitId);
+          if (selUnit) {
+            selUnit.gridPos = { x, y };
+            // 移動後自動觸發亂戰區域計算（即時形成新亂戰區 / 消解舊亂戰區）
+            recalculateMeleeZones();
+            showToast(`${selUnit.name} 移動至 (${x}, ${y})`, 'info');
+          }
+        } else {
+          // 點擊空白區域且非移動操作：取消選取
+          state.selectedUnitId = null;
+        }
+        renderApp();
+      }
+    }
+
+    // Attach to Global Scope for inline HTML event attributes
+    window.openUnitModal = openUnitModal;
+    window.closeUnitModal = closeUnitModal;
+    window.handleUnitFormSubmit = handleUnitFormSubmit;
+    window.setRole = setRole;
+    window.setCombatMode = setCombatMode;
+    window.toggleMonsterStatsVisibility = toggleMonsterStatsVisibility;
+    window.toggleMonsterNamesVisibility = toggleMonsterNamesVisibility;
+    window.nextRound = nextRound;
+    window.openEffectModal = openEffectModal;
+    window.closeEffectModal = closeEffectModal;
+    window.applyEffectPreset = applyEffectPreset;
+    window.saveEffect = saveEffect;
+    window.openRoomModal = openRoomModal;
+    window.closeRoomModal = closeRoomModal;
+    window.createShareRoom = createShareRoom;
+    window.joinShareRoom = joinShareRoom;
+    window.leaveRoom = leaveRoom;
+    window.copyRoomCode = copyRoomCode;
+    window.setGridTool = setGridTool;
+    window.updateGridScale = updateGridScale;
+    window.autoDetectGridMeleeZones = autoDetectGridMeleeZones;
+    window.clearGridMeleeZones = clearGridMeleeZones;
+    window.clearGridSelection = clearGridSelection;
+    window.handleGridCellClick = handleGridCellClick;
+
+    // Initialization
     window.onload = function() {
-      loadSavedState();
+      recalculateMeleeZones();
+      updateFogOfWarButtonsUI();
       renderApp();
     };
   </script>
